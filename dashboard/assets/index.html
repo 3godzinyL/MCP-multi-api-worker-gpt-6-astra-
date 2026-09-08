@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="__CSRF__">
+  <meta name="description" content="Lokalny panel trzech API i zadań Codex." data-i18n-content="Lokalny panel trzech API i zadań Codex.">
+  <title data-i18n="3api — centrum pracy">3api — centrum pracy</title>
+  <link rel="icon" href="/ui/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/assets/app.css">
+  <link rel="stylesheet" href="/ui/assets/controls.css">
+  <link rel="stylesheet" href="/ui/assets/history.css">
+  <script type="module" src="/ui/assets/app.js"></script>
+</head>
+<body>
+  <a href="#workspace" class="skip-link"><span data-i18n="Przejdź do obszaru pracy">Przejdź do obszaru pracy</span></a>
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="/ui/" aria-label="3api — strona główna" data-i18n-aria-label="3api — strona główna"><img src="/ui/assets/icon.svg" alt="" width="34" height="34"><span>3api<span class="brand-dot">.</span></span><span class="local-tag">LOCAL</span></a>
+    <div class="workspace-label"><span data-i18n="TWOJE CENTRUM PRACY">TWOJE CENTRUM PRACY</span></div>
+    <button class="nav-button active" id="overview-button"><span data-icon="activity"></span> <span data-i18n="Przegląd">Przegląd</span> <span class="nav-dot"></span></button>
+    <div class="sidebar-heading"><span><span data-i18n="Projekty i czaty">Projekty i czaty</span></span><button class="icon-button" data-action="add-project" aria-label="Dodaj projekt lub czat" data-i18n-aria-label="Dodaj projekt lub czat"><span data-icon="plus"></span></button></div>
+    <div id="project-list" class="project-list"></div>
+    <button class="add-project" data-action="add-project"><span data-icon="plus"></span> <span data-i18n="Dodaj projekt lub czat">Dodaj projekt lub czat</span></button>
+    <div class="sidebar-heading history-heading"><span><span data-i18n="Czaty projektu">Czaty projektu</span></span><span id="history-count" class="count">0</span></div>
+    <div id="task-list" class="task-list"><p class="sidebar-empty"><span data-i18n="Tutaj pojawią się Twoje zadania.">Tutaj pojawią się Twoje zadania.</span></p></div>
+    <button class="add-project" id="more-chats" hidden><span data-i18n="Pokaż kolejne">Pokaż kolejne</span></button>
+    <button class="nav-button" id="settings-button"><span data-icon="settings"></span> <span data-i18n="Ustawienia zespołu">Ustawienia zespołu</span></button>
+    <button class="nav-button polcio-link" id="polcio-button"><span data-icon="sparkles"></span> <span data-i18n="Polcio to szef">Polcio to szef</span></button>
+    <div class="sidebar-footer"><span class="status-dot" id="side-status"></span><div><strong id="side-status-text"><span data-i18n="Łączenie z proxy">Łączenie z proxy</span></strong><span>localhost</span></div><span data-icon="shield"></span></div>
+  </aside>
+
+  <main id="workspace" class="main">
+    <header class="topbar">
+      <div class="page-heading"><button class="icon-button mobile-menu" id="menu-button" aria-label="Pokaż projekty" data-i18n-aria-label="Pokaż projekty"><span data-icon="menu"></span></button><div><div class="breadcrumb"><span data-i18n="Przestrzeń robocza">Przestrzeń robocza</span> <span>/</span> <span id="breadcrumb-project">3api</span></div><h1><span data-i18n="Twoje projekty i AI">Twoje projekty i AI</span><span class="heading-dot">.</span></h1></div></div>
+      <div class="top-actions"><label class="language-control" for="language-picker"><span><span data-i18n="Język">Język</span></span><select id="language-picker" aria-label="Język interfejsu" data-i18n-aria-label="Język interfejsu"><option value="pl" lang="pl">PL</option><option value="en" lang="en">EN</option></select></label><span class="connection-pill" id="connection"><span class="status-dot"></span><span><span data-i18n="Łączenie">Łączenie</span></span></span><button class="icon-button bordered" id="refresh-button" aria-label="Odśwież status" data-i18n-aria-label="Odśwież status"><span data-icon="refresh"></span></button></div>
+    </header>
+
+    <div id="session-notice" class="notice session-notice" role="alert" hidden><span data-i18n="Odnawianie lokalnej sesji…">Odnawianie lokalnej sesji…</span></div>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section class="metrics-grid" aria-label="Statystyki pracy" data-i18n-aria-label="Statystyki pracy">
+      <article class="metric-card token-card"><div class="metric-label"><span><span data-i18n="Tokeny API">Tokeny API</span></span><span data-icon="tokens"></span></div><div class="metric-value" id="total-tokens">—</div><div class="metric-bottom"><span><i class="legend-dot input-dot"></i> <span data-i18n="Wejście">Wejście</span> <b id="input-tokens">—</b></span><span><i class="legend-dot output-dot"></i> <span data-i18n="Wyjście">Wyjście</span> <b id="output-tokens">—</b></span></div></article>
+      <article class="metric-card"><div class="metric-label"><span><span data-i18n="Generacje">Generacje</span></span><span data-icon="sparkles"></span></div><div class="metric-value" id="generations">0</div><div class="metric-bottom"><span id="requests-description"><span data-i18n="Zakończone odpowiedzi AI">Zakończone odpowiedzi AI</span></span></div></article>
+      <article class="metric-card"><div class="metric-label"><span><span data-i18n="Aktywni agenci">Aktywni agenci</span></span><span data-icon="agents"></span></div><div class="metric-value"><span id="active-agents">0</span><span class="metric-unit" id="agents-unit"><span data-i18n="w pracy">w pracy</span></span></div><div class="metric-bottom"><span id="agents-description"><span data-i18n="Gotowi na Twoje zadanie">Gotowi na Twoje zadanie</span></span></div></article>
+      <article class="metric-card"><div class="metric-label"><span><span data-i18n="Zmiany w kodzie">Zmiany w kodzie</span></span><span data-icon="code"></span></div><div class="metric-value diff-value"><span class="added" id="lines-added">+0</span><span class="removed" id="lines-removed">−0</span></div><div class="metric-bottom"><span data-icon="file"></span><span id="files-count"><span data-i18n="0 zmienionych plików">0 zmienionych plików</span></span><span class="scope-label"><span data-i18n="zadanie">zadanie</span></span></div></article>
+    </section>
+
+    <div class="measurement-note"><span id="usage-scope"><span data-i18n="Cały ruch przez proxy">Cały ruch przez proxy</span></span><span id="usage-note"><span data-i18n="Tokeny są raportowane po odpowiedzi API. Cache jest częścią wejścia.">Tokeny są raportowane po odpowiedzi API. Cache jest częścią wejścia.</span></span></div>
+
+    <section class="connections-section" aria-labelledby="connections-heading">
+      <div class="section-heading"><h2 id="connections-heading"><span data-i18n="Twoje połączenia">Twoje połączenia</span> <span class="subtle" id="providers-count">0 / 3</span></h2><span class="section-note"><span data-icon="route"></span> <span data-i18n="Automatyczne przełączanie po limicie">Automatyczne przełączanie po limicie</span></span></div>
+      <div id="provider-list" class="providers-grid"></div>
+    </section>
+
+    <section id="project-change-summary" aria-live="polite"></section>
+    <div class="work-grid">
+      <section class="task-panel panel" aria-labelledby="task-heading">
+        <div class="panel-header"><div class="panel-title"><span class="project-icon" data-icon="folder"></span><div><h2 id="task-heading"><span data-i18n="Nowe zadanie">Nowe zadanie</span></h2><div class="project-path" id="project-path"><span data-i18n="Wybierz folder projektu">Wybierz folder projektu</span></div></div></div><button class="small-button" id="new-task-button"><span data-icon="plus"></span> <span data-i18n="Nowe">Nowe</span></button></div>
+        <div class="task-tabs" role="tablist" aria-label="Szczegóły zadania" data-i18n-aria-label="Szczegóły zadania"><button role="tab" aria-selected="true" data-tab="conversation"><span data-i18n="Przebieg">Przebieg</span></button><button role="tab" aria-selected="false" data-tab="changes"><span data-i18n="Zmiany">Zmiany</span> <span id="changes-tab-count">0</span></button><button role="tab" aria-selected="false" data-tab="agents"><span data-i18n="Agenci">Agenci</span> <span id="agents-tab-count">0</span></button><button role="tab" aria-selected="false" data-tab="api-events"><span data-i18n="Historia API">Historia API</span></button><span id="task-state" class="task-state"><span data-i18n="Gotowe do pracy">Gotowe do pracy</span></span></div>
+        <div id="conversation" class="task-content"><div class="empty-task"><div class="empty-symbol"><span data-icon="terminal"></span><span class="symbol-dot"></span></div><h3><span data-i18n="Co dzisiaj zbudujemy?">Co dzisiaj zbudujemy?</span></h3><p><span data-i18n="Wybierz projekt i opisz zadanie.">Wybierz projekt i opisz zadanie.</span><br><span data-i18n="Przebieg pracy i zmiany zobaczysz tutaj.">Przebieg pracy i zmiany zobaczysz tutaj.</span></p><div class="empty-steps"><span><i>1</i> <span data-i18n="Wybierz folder">Wybierz folder</span></span><span><i>2</i> <span data-i18n="Napisz prompt">Napisz prompt</span></span><span><i>3</i> <span data-i18n="Śledź pracę">Śledź pracę</span></span></div></div></div>
+        <p id="task-token-count" class="task-token-count" hidden></p>
+        <div id="changes" class="task-content" hidden><div class="empty-secondary"><span data-icon="code"></span><p><span data-i18n="Zmiany w plikach pojawią się podczas pracy nad zadaniem.">Zmiany w plikach pojawią się podczas pracy nad zadaniem.</span></p></div></div>
+        <div id="agents" class="task-content" hidden><div class="empty-secondary"><span data-icon="agents"></span><p><span data-i18n="Tutaj zobaczysz agentów pracujących nad wybranym zadaniem.">Tutaj zobaczysz agentów pracujących nad wybranym zadaniem.</span></p></div></div>
+        <div id="api-events" class="task-content" hidden></div>
+        <div id="history-selection" class="history-selection" hidden><span id="selected-run-label"></span><button class="small-button" id="history-live-button"><span data-i18n="Wróć do czatu">Wróć do czatu</span></button></div>
+        __COMPOSER__
+      </section>
+
+      <aside class="activity-column">
+        <section id="run-history" class="panel"></section>
+        <section class="panel traffic-panel"><div class="panel-header"><h2><span data-i18n="Ruch API">Ruch API</span></h2><span class="tiny-label"><span data-i18n="OSTATNIA GODZINA">OSTATNIA GODZINA</span></span></div><div class="traffic-summary"><strong id="hour-tokens">—</strong><span><span data-i18n="tokenów">tokenów</span></span><span id="traffic-live" class="live-tag"><i></i> <span data-i18n="NA ŻYWO">NA ŻYWO</span></span></div><div id="traffic-chart" class="traffic-chart" aria-label="Wykres tokenów w ostatniej godzinie" data-i18n-aria-label="Wykres tokenów w ostatniej godzinie"><div class="chart-empty"><span data-i18n="Historia pojawi się po pierwszej odpowiedzi.">Historia pojawi się po pierwszej odpowiedzi.</span></div></div><div class="chart-labels"><span><span data-i18n="60 min temu">60 min temu</span></span><span><span data-i18n="Teraz">Teraz</span></span></div><div class="cache-row"><span><span data-icon="layers"></span> <span data-i18n="Tokeny z pamięci podręcznej">Tokeny z pamięci podręcznej</span></span><strong id="cached-tokens">—</strong></div></section>
+        <section class="panel activity-panel"><div class="panel-header"><h2><span data-i18n="Aktywność">Aktywność</span></h2><span class="live-indicator"></span></div><div id="activity-feed" class="activity-feed"><div class="activity-empty"><span data-icon="activity"></span><p><span data-i18n="Połączenia, uruchomione narzędzia i przełączenia API pojawią się tutaj.">Połączenia, uruchomione narzędzia i przełączenia API pojawią się tutaj.</span></p></div></div></section>
+        <div class="local-footnote"><span data-icon="lock"></span><span><span data-i18n="Panel i historia pozostają na Twoim komputerze.">Panel i historia pozostają na Twoim komputerze.</span></span></div>
+      </aside>
+    </div>
+    <details id="polcio-section" class="polcio-section"><summary><span data-icon="sparkles"></span><span><span data-i18n="Polcio to szef">Polcio to szef</span></span><small><span data-i18n="Osobista strefa dowodzenia">Osobista strefa dowodzenia</span></small><span class="polcio-open"><span data-i18n="Otwórz 3D ↗">Otwórz 3D ↗</span></span></summary><div class="polcio-stage"><div id="polcio-canvas" role="img" aria-label="Obracające się złote litery Polcio to szef z płynnym, kapiącym szlamem w 3D" data-i18n-aria-label="Obracające się złote litery Polcio to szef z płynnym, kapiącym szlamem w 3D"><span class="gold-fallback"><span data-i18n="Polcio to szef">Polcio to szef</span></span></div><div class="polcio-caption"><span><span data-i18n="TY DECYDUJESZ. ASTRY ROBIĄ ROBOTĘ.">TY DECYDUJESZ. ASTRY ROBIĄ ROBOTĘ.</span></span><button type="button" class="small-button" id="polcio-motion"><span data-i18n="Wstrzymaj animację">Wstrzymaj animację</span></button></div></div></details>
+    <footer class="main-footer"><span><span class="status-dot"></span> <span id="footer-status"><span data-i18n="Lokalna przestrzeń robocza">Lokalna przestrzeń robocza</span></span></span><span class="runtime-label"><span data-i18n="Rust + MCP · tylko odczyt">Rust + MCP · tylko odczyt</span></span><span id="updated-at"><span data-i18n="Oczekiwanie na dane">Oczekiwanie na dane</span></span><button type="button" class="signout-button" id="logout-button"><span data-i18n="Odnów sesję">Odnów sesję</span></button></footer>
+  </main>
+
+  <dialog id="project-dialog" class="workspace-dialog"><form id="project-form">
+    <div class="dialog-header"><div><span class="eyebrow" data-i18n="PRZESTRZEŃ ROBOCZA">PRZESTRZEŃ ROBOCZA</span><h2 data-i18n="Dodaj projekt lub czat">Dodaj projekt lub czat</h2></div><button type="button" class="icon-button" id="close-project-dialog" aria-label="Zamknij" data-i18n-aria-label="Zamknij"><span data-icon="close"></span></button></div>
+    <fieldset class="workspace-choice"><legend data-i18n="Co chcesz utworzyć?">Co chcesz utworzyć?</legend><label><input type="radio" name="workspace-kind" value="project" checked><span><strong data-i18n="Projekt">Projekt</strong><small data-i18n="Praca w istniejącym folderze.">Praca w istniejącym folderze.</small></span></label><label><input type="radio" name="workspace-kind" value="chat"><span><strong data-i18n="Czat">Czat</strong><small data-i18n="Rozmowa bez podpinania projektu.">Rozmowa bez podpinania projektu.</small></span></label></fieldset>
+    <label for="workspace-name" data-i18n="Nazwa (opcjonalnie)">Nazwa (opcjonalnie)</label><input id="workspace-name" maxlength="120" autocomplete="off">
+    <div id="project-folder-fields"><label for="folder-path" data-i18n="Folder projektu">Folder projektu</label><div class="folder-input-row"><input id="folder-path" name="path" placeholder="C:\Projects\my-project" autocomplete="off" required><button class="small-button" type="button" id="browse-path" aria-label="Wyświetl folder" data-i18n-aria-label="Wyświetl folder"><span data-icon="arrow-right"></span></button></div><div class="folder-breadcrumb"><button id="folder-up" type="button" class="small-button"><span data-icon="arrow-up"></span> <span data-i18n="Poziom wyżej">Poziom wyżej</span></button><span id="folder-current"></span></div><div id="folder-list" class="folder-list"></div></div>
+    <div id="chat-access-fields" hidden><fieldset class="workspace-choice access-choice"><legend data-i18n="Dostęp czatu">Dostęp czatu</legend><label><input type="radio" name="chat-access" value="isolated" checked><span><strong data-i18n="Folder tymczasowy">Folder tymczasowy</strong><small data-i18n="Osobny folder na pliki czatu. Zapis poza nim wymaga zatwierdzenia; odczyt komputera nie jest w pełni izolowany.">Osobny folder na pliki czatu. Zapis poza nim wymaga zatwierdzenia; odczyt komputera nie jest w pełni izolowany.</small></span></label><label><input type="radio" name="chat-access" value="full"><span><strong data-i18n="Pełny dostęp do komputera">Pełny dostęp do komputera</strong><small data-i18n="Agent może czytać i zmieniać pliki oraz wykonywać polecenia bez pytań o zgodę.">Agent może czytać i zmieniać pliki oraz wykonywać polecenia bez pytań o zgodę.</small></span></label></fieldset><label class="check-label access-confirmation" id="full-access-label" hidden><input id="full-access-confirmed" type="checkbox"><span data-i18n="Świadomie zezwalam temu czatowi na pełny dostęp do komputera.">Świadomie zezwalam temu czatowi na pełny dostęp do komputera.</span></label></div>
+    <div id="folder-error" class="form-error" role="alert"></div><div class="dialog-footer"><span id="workspace-create-note" data-i18n="Codex będzie pracować w wybranym folderze.">Codex będzie pracować w wybranym folderze.</span><button class="run-button" type="submit" id="create-workspace"><span data-i18n="Utwórz">Utwórz</span> <span data-icon="plus"></span></button></div>
+  </form></dialog>
+  <dialog id="remove-project-dialog" class="workspace-dialog"><form id="remove-project-form"><div class="dialog-header"><h2 data-i18n="Usuń z listy">Usuń z listy</h2><button type="button" class="icon-button" data-close="remove-project-dialog" aria-label="Zamknij" data-i18n-aria-label="Zamknij"><span data-icon="close"></span></button></div><p id="remove-project-name" class="remove-project-name"></p><p class="field-help" data-i18n="Usuniesz tę pozycję z listy. Folder, pliki i zapisana historia pozostaną na dysku.">Usuniesz tę pozycję z listy. Folder, pliki i zapisana historia pozostaną na dysku.</p><div id="remove-project-error" class="form-error" role="alert"></div><div class="dialog-footer"><button type="button" class="small-button" data-close="remove-project-dialog" data-i18n="Anuluj">Anuluj</button><button type="submit" class="danger-button" id="confirm-remove-project" data-i18n="Usuń z listy">Usuń z listy</button></div></form></dialog>
+  __CONTROLS_DIALOGS__
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<form id="prompt-form" class="composer">
+  <div class="composer-options">
+    <label><span data-i18n="Model">Model</span><select id="model-picker" aria-label="Model API" data-i18n-aria-label="Model API"><option>gpt-6-astra</option></select></label>
+    <label><span data-i18n="Rozumowanie">Rozumowanie</span><select id="effort"><option value="low" data-i18n="Niskie">Niskie</option><option value="medium" data-i18n="Średnie">Średnie</option><option value="high" data-i18n="Wysokie">Wysokie</option><option value="xhigh" data-i18n="XH · Bardzo wysokie">XH · Bardzo wysokie</option><option value="max" selected>Max</option><option value="ultra" data-i18n="Ultra · agenci">Ultra · agenci</option></select></label>
+    <label><span data-i18n="Uprawnienia">Uprawnienia</span><select id="permission-mode"><option value="yolo" data-i18n="YOLO · pełny dostęp">YOLO · pełny dostęp</option><option value="approval" selected data-i18n="Zatwierdzanie operacji">Zatwierdzanie operacji</option></select></label>
+  </div>
+  <div class="routing-row"><label for="primary-api"><span data-i18n="Preferowane API">Preferowane API</span></label><select id="primary-api" aria-label="Preferowane API" data-i18n-aria-label="Preferowane API"></select><span id="model-label" class="subtle">gpt-6-astra</span></div>
+  <div id="api-cohort" class="api-cohort" aria-label="API biorące udział w zadaniu" data-i18n-aria-label="API biorące udział w zadaniu"></div>
+  <label class="experiment-toggle"><input type="checkbox" id="experimental"><span data-i18n="Ultra → 2 × Ultra">Ultra → 2 × Ultra</span><span class="beta-tag"><span data-i18n="EKSPERYMENT">EKSPERYMENT</span></span></label>
+  <p id="mode-description" class="mode-description"><span data-i18n="Główne API prowadzi zadanie. Po limicie kolejne zaznaczone API przejmuje odpowiedź z historią wątku.">Główne API prowadzi zadanie. Po limicie kolejne zaznaczone API przejmuje odpowiedź z historią wątku.</span></p>
+  <label for="prompt" class="visually-hidden"><span data-i18n="Opisz zadanie dla Codex">Opisz zadanie dla Codex</span></label><textarea id="prompt" name="prompt" rows="3" maxlength="32000" placeholder="Polcio, co robimy? Opisz zadanie dla wybranego projektu…" data-i18n-placeholder="Polcio, co robimy? Opisz zadanie dla wybranego projektu…"></textarea>
+  <div id="submit-error" class="form-error" role="alert" hidden></div>
+  <div class="composer-bottom"><span id="permission-description" class="permission-description"><span data-i18n="Zatwierdzanie: zapis w projekcie; dodatkowy dostęp wymaga Twojej zgody.">Zatwierdzanie: zapis w projekcie; dodatkowy dostęp wymaga Twojej zgody.</span></span><button class="run-button" type="submit" id="run-button" disabled><span><span data-i18n="Uruchom zadanie">Uruchom zadanie</span></span><span data-icon="arrow-up"></span></button><button class="stop-button" type="button" id="stop-task-button" hidden><span data-i18n="Zatrzymaj">Zatrzymaj</span> <span data-icon="stop"></span></button></div>
+  <div class="composer-hint"><span id="composer-hint"><span data-i18n="Przygotowywanie połączenia z Codex">Przygotowywanie połączenia z Codex</span></span><span>Ctrl + Enter</span></div>
+</form>

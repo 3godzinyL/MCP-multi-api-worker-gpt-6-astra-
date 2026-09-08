@@ -1,0 +1,10 @@
+# Merge this section into your Codex config; replace paths with ABSOLUTE paths.
+# Do not overwrite your existing config.toml. No API keys belong here.
+# Release layout: the executable is next to bootstrap.bat and the private worker.
+# For source builds replace 3api.exe below with target\release\3api.exe.
+[mcp_servers.three_api]
+command = 'C:\Projects\3api\3api.exe'
+args = ['mcp', '--config', 'C:\Projects\3api\providers.toml', '--data-dir', 'C:\Projects\3api\data\rust', '--proxy-url', 'http://127.0.0.1:4100']
+startup_timeout_sec = 10
+tool_timeout_sec = 15
+enabled_tools = ['3api_status', '3api_providers', '3api_usage', '3api_projects', '3api_tasks']
