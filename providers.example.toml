@@ -1,0 +1,86 @@
+[proxy]
+# Rust entry points: proxy 127.0.0.1:4100, authenticated panel 127.0.0.1:4101.
+# Keep disabled for production. Only isolated local tests should enable this.
+allow_loopback_upstreams = false
+# Upper bounds for response buffering/streaming in the Rust runtime.
+max_response_bytes = 33554432
+max_stream_bytes = 134217728
+max_stream_seconds = 3600
+public_model = "gpt-6-astra"
+proxy_token_env = "LOCAL_RESPONSES_PROXY_TOKEN"
+connect_timeout_seconds = 10
+# Maximum inactivity between upstream chunks, not total generation time.
+read_timeout_seconds = 120
+write_timeout_seconds = 30
+pool_timeout_seconds = 10
+max_connections = 100
+max_request_bytes = 16777216
+log_level = "INFO"
+# Permit Codex to reconnect on another backend after a failed stream.
+reconnect_failover = true
+# Cooldown for a broken connection; rate limits use the provider setting below.
+reconnect_cooldown_seconds = 30
+# Keep the request open while every provider is cooling down (total wait budget).
+# Zero restores immediate HTTP 429 when all providers are cooling down.
+cooldown_wait_seconds = 180
+# Rotate through providers after failures, even when the previous cooldown has expired.
+rotate_on_failure = true
+# Codex reconnects are separate from the number of configured providers.
+codex_stream_max_retries = 10
+codex_request_max_retries = 4
+
+# Rotation order: provider1 -> provider2 -> provider3 -> provider1.
+# base_url must NOT include /responses. No API keys belong in this file.
+# Azure v1: https://RESOURCE.openai.azure.com/openai/v1
+# Foundry: https://RESOURCE.services.ai.azure.com/openai/v1
+# Legacy Azure: https://RESOURCE.openai.azure.com/openai
+#              with api_version = "2025-04-01-preview"
+# Other compatible server: https://HOST/v1, auth_type = "bearer"
+# Limits below apply independently to each provider, including main and helper requests.
+# Integers only: 0 < soft_tokens_per_minute < hard_tokens_per_minute <= tokens_per_minute <= 1000000000.
+# Existing configurations without these fields keep the defaults shown below.
+
+[[providers]]
+id = "provider1"
+enabled = false
+base_url = ""
+base_url_env = "AZURE_PROVIDER_1_ENDPOINT"
+deployment = ""
+deployment_env = "AZURE_PROVIDER_1_DEPLOYMENT"
+api_key_env = "AZURE_PROVIDER_1_API_KEY"
+auth_type = "api-key"
+api_version = ""
+cooldown_seconds = 60
+tokens_per_minute = 1000000
+soft_tokens_per_minute = 900000
+hard_tokens_per_minute = 950000
+
+[[providers]]
+id = "provider2"
+enabled = false
+base_url = ""
+base_url_env = "AZURE_PROVIDER_2_ENDPOINT"
+deployment = ""
+deployment_env = "AZURE_PROVIDER_2_DEPLOYMENT"
+api_key_env = "AZURE_PROVIDER_2_API_KEY"
+auth_type = "api-key"
+api_version = ""
+cooldown_seconds = 60
+tokens_per_minute = 1000000
+soft_tokens_per_minute = 900000
+hard_tokens_per_minute = 950000
+
+[[providers]]
+id = "provider3"
+enabled = false
+base_url = ""
+base_url_env = "AZURE_PROVIDER_3_ENDPOINT"
+deployment = ""
+deployment_env = "AZURE_PROVIDER_3_DEPLOYMENT"
+api_key_env = "AZURE_PROVIDER_3_API_KEY"
+auth_type = "api-key"
+api_version = ""
+cooldown_seconds = 60
+tokens_per_minute = 1000000
+soft_tokens_per_minute = 900000
+hard_tokens_per_minute = 950000
