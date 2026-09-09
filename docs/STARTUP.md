@@ -31,7 +31,9 @@ Domyślny tryb uprawnień prosi o zatwierdzenie dodatkowych operacji. W stanie o
 
 ## Zatrzymanie, restart i dane
 
-Pozostaw terminal serwera otwarty. **Ctrl+C** zatrzymuje jego instancję. Ponowne `start.bat` korzysta z tego samego lokalnego katalogu danych. Uruchomienia przerwane zamknięciem procesu nie powinny być prezentowane jako ukończone.
+`start.bat` otwiera przeglądarkę po uzyskaniu gotowości panelu. Jeśli serwer już działa, ponowny start otwiera ten sam panel. Opcja `start.bat -NoBrowser` pomija otwieranie przeglądarki, na przykład podczas testów.
+
+Pozostaw terminal nowego serwera otwarty. **`stop.bat`** zamyka tę instalację również wtedy, gdy uruchomiono ją w ukrytym oknie. Sprawdza właściciela obu portów, plik programu oraz ścieżki konfiguracji i danych. Korzysta z sesji panelu, zatrzymuje aktywne zadania i czeka na zapis wyników oraz zakończenie procesu. Ponowny STOP po zamknięciu jest bezpieczny. **Ctrl+C** w terminalu serwera pozostaje dostępne. Restart: `stop.bat`, następnie `start.bat`; obie operacje korzystają z dotychczasowych danych. Przerwane zadania zachowują historię i nie są oznaczane jako ukończone.
 
 | Co jest zapamiętane | Gdzie |
 | --- | --- |
@@ -95,7 +97,7 @@ Polecenia zawierające `[demo:completed]`, `[demo:failed]`, `[demo:interrupted]`
 | --- | --- |
 | Nie ma Pythona | `py -3 --version` lub `python --version`; wymagane 3.11+. |
 | Bootstrap nie pobiera zależności | Dostęp do źródła pakietów i wynik `bootstrap.bat`; nie kopiuj `.venv` z innego komputera. |
-| Port 4100 lub 4101 jest zajęty | Czy działa Twoja poprzednia instancja. Zatrzymaj ją w jej terminalu; launcher nie powinien zabijać obcych procesów. |
+| Port 4100 lub 4101 jest zajęty | Działający panel otworzysz ponownie przez `start.bat`. Przed aktualizacją użyj `stop.bat`; skrypt odmawia zatrzymania obcego programu lub innej instalacji. |
 | Połączenie z panelem wygasło | Otwórz ponownie `/ui/`, aby ustanowić lokalną sesję. Zachowany szkic pozwala wrócić do wiadomości. |
 | Brak projektów po restarcie | Ścieżkę `--data-dir` oraz katalog, z którego uruchamiasz aplikację. |
 | Zadanie nie startuje | `codex --version`, wybór zgodnego API, klucz oraz wynik pokazany w panelu. |
@@ -104,9 +106,9 @@ Polecenia zawierające `[demo:completed]`, `[demo:failed]`, `[demo:interrupted]`
 
 ## English quick start
 
-The supplied GitHub folder is a source export. Install Python 3.11+, Rust stable and MSVC Build Tools, and make Codex CLI available in `PATH` for coding tasks. Run `start.bat` in the source directory and open **http://127.0.0.1:4101/ui/**. The session is automatic. Startup prepares Python dependencies in a local `.venv` and rebuilds a missing or outdated Rust executable. Finish active work and restart a running instance to use changed backend code. An optionally packaged Windows release does not require Rust or Node.js.
+The supplied GitHub folder is a source export. Install Python 3.11+, Rust stable and MSVC Build Tools, and make Codex CLI available in `PATH` for coding tasks. Run `start.bat` in the source directory; it opens **http://127.0.0.1:4101/ui/** when the dashboard is ready. Running it again opens the existing dashboard. Use `start.bat -NoBrowser` to skip opening a browser. The session is automatic. Startup prepares Python dependencies in a local `.venv` and rebuilds a missing or outdated Rust executable. Finish active work and restart a running instance to use changed backend code. An optionally packaged Windows release does not require Rust or Node.js.
 
-Keep the whole release together because the task dashboard requires its private Python worker. Stop the server with **Ctrl+C**. Reuse the same `data/rust` directory to retain chats, runs and changes. Drafts and UI preferences belong to the current browser profile. Check [README.en.md](../README.en.md) for source builds and tests, and [VERIFICATION.md](VERIFICATION.md) for checks actually performed.
+Keep the whole release together because the task dashboard requires its private Python worker. **`stop.bat`** stops this installation even when its window is hidden. It verifies both listeners, the executable and the configuration/data paths, then uses the dashboard session to stop active tasks, save results and wait for process exit. A repeated STOP succeeds when it is already stopped. **Ctrl+C** in the server terminal also works. Restart with `stop.bat` followed by `start.bat`. Reuse the same `data/rust` directory to retain chats, runs and changes. Drafts and UI preferences belong to the current browser profile. Check [README.en.md](../README.en.md) for source builds and tests, and [VERIFICATION.md](VERIFICATION.md) for checks actually performed.
 
 For an offline UI demonstration from source, run `python scripts/serve_demo.py` and open `http://127.0.0.1:44101/ui/`. This uses synthetic data and deterministic `[demo:...]` scenarios; it is separate from the production Rust/Python runtime and does not contact model providers.
 

@@ -37,7 +37,7 @@ Open the project directory or extract `GitHub/3api-source.zip`. You need **Pytho
 .\start.bat
 ```
 
-1. Open **http://127.0.0.1:4101/ui/**. The local session starts automatically.
+1. The dashboard opens automatically at **http://127.0.0.1:4101/ui/**. The local session starts automatically.
 2. Add a provider with its endpoint, exact model or deployment, and key.
 3. Add a project directory or a chat, then choose compatible providers.
 4. Submit an instruction. A follow-up continues the conversation and creates another history entry.
@@ -46,7 +46,7 @@ First startup creates `.venv`, installs Python dependencies and builds the Rust 
 
 The **GitHub** folder is a prepared source export with code, documentation, screenshots and checksums. It does not require a prebuilt EXE. The optional Windows release process, including its worker and bootstrap files, is documented in [docs/RELEASE.md](docs/RELEASE.md).
 
-Keep the server terminal open. **Ctrl+C** stops this instance. [Startup and troubleshooting](docs/STARTUP.md).
+Keep the server terminal open. Running **`start.bat`** again opens the existing dashboard. **`stop.bat`** stops this installation even when its window is hidden; it first stops active tasks and saves their results. You can also use **Ctrl+C** in the server terminal. [Startup and troubleshooting](docs/STARTUP.md).
 
 ## One chat, a history of individual runs
 

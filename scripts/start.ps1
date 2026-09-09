@@ -1,8 +1,12 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Start', 'Status', 'ConfigureCodex')]
+    [ValidateSet('Start', 'Status', 'Stop', 'ConfigureCodex', 'OpenPanel')]
     [string]$Mode = 'Start',
     [switch]$Build,
+    [switch]$OpenBrowser,
+    [switch]$NoBrowser,
+    [ValidateRange(1, 120)]
+    [int]$OpenTimeoutSeconds = 45,
     [ValidateRange(1, 65535)]
     [int]$ProxyPort = 4100,
     [ValidateRange(1, 65535)]
@@ -17,6 +21,8 @@ $rustBinary = if (Test-Path -LiteralPath $packagedBinary -PathType Leaf) { $pack
 $configPath = Join-Path $projectRoot 'providers.toml'
 $runtimePath = Join-Path $projectRoot 'data\rust'
 $workerPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
+$panelUrl = "http://127.0.0.1:$PanelPort/ui/"
+$browserWaiter = $null
 
 function Get-PanelHealth {
     # Unauthenticated loopback health contains no credentials or project data.
@@ -33,6 +39,28 @@ function Test-PublicPorts {
 
 try {
     if ($ProxyPort -eq $PanelPort) { throw 'Proxy i panel wymagaja roznych portow.' }
+    if ($Mode -eq 'OpenPanel') {
+        $deadline = [DateTime]::UtcNow.AddSeconds($OpenTimeoutSeconds)
+        do {
+            if (Get-PanelHealth) {
+                if (-not $NoBrowser) { Start-Process -FilePath $panelUrl }
+                exit 0
+            }
+            Start-Sleep -Milliseconds 200
+        } while ([DateTime]::UtcNow -lt $deadline)
+        throw "Panel nie jest gotowy. Sprawdz komunikat startu, potem otworz $panelUrl."
+    }
+    if ($Mode -eq 'Stop') {
+        if (-not (Test-PublicPorts)) {
+            Write-Host '3api jest juz zatrzymane.'
+            exit 0
+        }
+        if (-not (Test-Path -LiteralPath $workerPython -PathType Leaf)) {
+            throw 'Brak lokalnego Pythona do sprawdzenia procesu. Uruchom bootstrap.bat, potem ponow stop.bat.'
+        }
+        & $workerPython (Join-Path $projectRoot 'manage.py') stop --proxy-port $ProxyPort --panel-port $PanelPort
+        exit $LASTEXITCODE
+    }
     if ($Mode -eq 'Status') {
         if (Get-PanelHealth) {
             Write-Host "Rust panel: http://127.0.0.1:$PanelPort/ui/ (online)"
@@ -47,7 +75,8 @@ try {
     if ($Mode -eq 'Start' -and (Test-PublicPorts)) {
         if (Get-PanelHealth) {
             Write-Host "Panel Rust juz dziala: http://127.0.0.1:$PanelPort/ui/"
-            Write-Host 'Aby go zaktualizowac, zakoncz prace i nacisnij Ctrl+C w jego oknie.'
+            if ($OpenBrowser -and -not $NoBrowser) { Start-Process -FilePath $panelUrl }
+            Write-Host 'Aby go zaktualizowac, uruchom stop.bat, a nastepnie start.bat.'
             exit 0
         }
         throw "Port $ProxyPort lub $PanelPort jest zajety. Sprawdz jego wlasciciela; skrypt nie zatrzymuje innych procesow."
@@ -87,7 +116,7 @@ try {
                 $processPath = $null
                 try { $processPath = $process.Path } catch {}
                 if ($processPath -and [System.String]::Equals($processPath, $rustBinary, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    throw 'Ta binarka Rust jest uruchomiona. Najpierw zatrzymaj ja przez Ctrl+C, potem zbuduj aktualizacje.'
+                    throw 'Ta binarka Rust jest uruchomiona. Najpierw uruchom stop.bat lub nacisnij Ctrl+C w jej oknie.'
                 }
             }
             $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue
@@ -105,11 +134,25 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Konfiguracja nie przeszla kontroli Rust.' }
         Write-Host "Panel: http://127.0.0.1:$PanelPort/ui/"
         Write-Host 'Panel otwiera sie bez tokenu; wewnetrzna autoryzacja API jest przygotowana automatycznie.'
-        Write-Host 'Pozostaw okno otwarte. Ctrl+C zatrzymuje te instancje i jej prywatny proces roboczy.'
+        Write-Host 'Pozostaw okno otwarte. Ctrl+C lub stop.bat zatrzymuje te instancje i jej prywatny proces roboczy.'
+        if ($OpenBrowser -and -not $NoBrowser) {
+            # The server stays attached to this terminal. This owned helper only
+            # opens the browser once health is ready; it is stopped on exit.
+            $browserWaiter = Start-Process -FilePath powershell.exe -WindowStyle Hidden -PassThru -ArgumentList @(
+                '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $PSCommandPath + '"'),
+                '-Mode', 'OpenPanel', '-ProxyPort', $ProxyPort, '-PanelPort', $PanelPort,
+                '-OpenTimeoutSeconds', $OpenTimeoutSeconds
+            )
+        }
         & $rustBinary serve --config $configPath --data-dir $runtimePath --project-dir $projectRoot --proxy-port $ProxyPort --panel-port $PanelPort
         exit $LASTEXITCODE
     } finally { Pop-Location }
 } catch {
     Write-Error $_.Exception.Message -ErrorAction Continue
     exit 1
+} finally {
+    if ($null -ne $browserWaiter) {
+        try { if (-not $browserWaiter.HasExited) { $browserWaiter.Kill() } } catch {}
+        $browserWaiter.Dispose()
+    }
 }

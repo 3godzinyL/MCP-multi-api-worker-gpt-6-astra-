@@ -8,10 +8,14 @@ import logging
 import os
 import secrets
 import sys
+import time
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
+import psutil
 import tomlkit
 
 from proxy.config import ConfigurationError, load_config
@@ -20,6 +24,125 @@ from proxy.dpapi import decrypt, encrypt
 
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / "providers.toml"
+
+
+class LifecycleError(RuntimeError):
+    """A safe, actionable launcher message without process or HTTP payloads."""
+
+
+def _same_path(value, expected):
+    return os.path.normcase(str(Path(value).resolve())) == os.path.normcase(str(Path(expected).resolve()))
+
+
+def running_application(root=ROOT, proxy_port=4100, panel_port=4101):
+    """Verify both listeners, the executable, and this installation's data paths."""
+    if not (1 <= proxy_port <= 65535 and 1 <= panel_port <= 65535) or proxy_port == panel_port:
+        raise LifecycleError("Proxy i panel wymagaja roznych, poprawnych portow.")
+    ports = {proxy_port, panel_port}
+    listeners = [c for c in psutil.net_connections(kind="tcp")
+                 if c.status == psutil.CONN_LISTEN and c.laddr and c.laddr.port in ports]
+    if not listeners:
+        return None
+    foreign = LifecycleError("Porty zajmuje inny program lub inna instalacja 3api. Niczego nie zatrzymano.")
+    owners = {c.pid for c in listeners}
+    if (len(listeners) != 2 or {c.laddr.port for c in listeners} != ports or
+            any(c.laddr.ip != "127.0.0.1" for c in listeners) or len(owners) != 1 or None in owners):
+        raise foreign
+    try:
+        process = psutil.Process(next(iter(owners)))
+        executable = Path(process.exe())
+        if not any(_same_path(executable, candidate) for candidate in
+                   (root / "3api.exe", root / "target" / "release" / "3api.exe")):
+            raise foreign
+        arguments = process.cmdline()
+        if len(arguments) < 2 or arguments[1] != "serve":
+            raise foreign
+
+        def option(name, default=None):
+            for index, value in enumerate(arguments[2:], start=2):
+                if value == name:
+                    return arguments[index + 1] if index + 1 < len(arguments) else default
+                if value.startswith(name + "="):
+                    return value[len(name) + 1:]
+            return default
+
+        cwd = Path(process.cwd())
+        project = option("--project-dir")
+        worker_root = (cwd / project if project else
+                       cwd if (cwd / "dashboard" / "sidecar.py").is_file() else executable.parent)
+        if not (_same_path(worker_root, root) and
+                _same_path(worker_root / option("--config", "providers.toml"), root / "providers.toml") and
+                _same_path(worker_root / option("--data-dir", "data/rust"), root / "data" / "rust")):
+            raise foreign
+        return process
+    except psutil.NoSuchProcess:
+        return None
+    except psutil.Error:
+        raise LifecycleError("Nie mozna potwierdzic wlasciciela procesu 3api. Niczego nie zatrzymano.") from None
+
+
+class _PanelSession(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tokens = []
+
+    def handle_starttag(self, tag, attributes):
+        values = dict(attributes)
+        if tag == "meta" and values.get("name") == "csrf-token":
+            self.tokens.append(values.get("content", ""))
+
+
+def stop_application(root=ROOT, proxy_port=4100, panel_port=4101, *, timeout=40, transport=None):
+    process = running_application(root, proxy_port, panel_port)
+    if process is None:
+        return "3api jest juz zatrzymane."
+    deadline = time.monotonic() + timeout
+    base = f"http://127.0.0.1:{panel_port}"
+    try:
+        with httpx.Client(base_url=base, trust_env=False, follow_redirects=False, timeout=5, transport=transport) as client:
+            health = client.get("/health")
+            health.raise_for_status()
+            if health.json().get("application") != "3api-rust-panel":
+                raise LifecycleError("Na tym porcie nie odpowiada panel 3api. Niczego nie zatrzymano.")
+            page = client.get("/ui/")
+            page.raise_for_status()
+            session = _PanelSession()
+            session.feed(page.text)
+            if (len(session.tokens) != 1 or not session.tokens[0] or not session.tokens[0].isascii() or
+                    any(c.isspace() for c in session.tokens[0]) or not client.cookies):
+                raise LifecycleError("Panel nie ustanowil sesji potrzebnej do zamkniecia.")
+            client.headers.update({"Origin": base, "x-panel-csrf": session.tokens[0]})
+            stopped = set()
+            while time.monotonic() < deadline:
+                if not process.is_running():
+                    return "3api zostalo zatrzymane."
+                response = client.post("/ui/api/shutdown", json={})
+                if response.status_code == 200:
+                    break
+                if response.status_code != 409:
+                    response.raise_for_status()
+                    raise LifecycleError("Panel nie potwierdzil zamkniecia.")
+                state = client.get("/ui/api/state")
+                state.raise_for_status()
+                active = [task for task in state.json().get("tasks", []) if task.get("state") in
+                          {"starting", "running", "awaiting_input", "stopping", "finalizing"}]
+                if not active:
+                    raise LifecycleError("Panel nie zaakceptowal zamkniecia. Sprawdz jego stan w przegladarce.")
+                for task in active:
+                    identity = (task["id"], task.get("run_id"))
+                    if identity not in stopped:
+                        result = client.post("/ui/api/tasks/" + quote(task["id"], safe="") + "/stop", json={})
+                        result.raise_for_status()
+                        stopped.add(identity)
+                time.sleep(.2)
+            else:
+                raise LifecycleError("Zadania nadal sie zatrzymuja. Poczekaj na zapis wynikow i ponow stop.bat.")
+        process.wait(timeout=max(.1, deadline - time.monotonic()))
+    except psutil.TimeoutExpired:
+        raise LifecycleError("3api nie potwierdzilo zakonczenia procesu. Sprawdz panel przed ponownym startem.") from None
+    except httpx.HTTPError:
+        raise LifecycleError("Panel nie odpowiedzial na poprawne zamkniecie. Nie wymuszono zatrzymania procesu.") from None
+    return "3api zatrzymane. Panel, proxy i prywatny worker zostaly zamkniete."
 
 
 def initialize():
@@ -159,6 +282,9 @@ def main():
     sub.add_parser("codex-token", help="Credential helper used by Codex; outputs only its local token")
     sub.add_parser("configure-codex")
     sub.add_parser("status")
+    stop = sub.add_parser("stop", help="Gracefully stop the verified Rust installation, including active tasks")
+    stop.add_argument("--proxy-port", type=int, default=4100)
+    stop.add_argument("--panel-port", type=int, default=4101)
     sub.add_parser("check-running", help="Exit successfully when the authenticated local proxy is already running")
     sub.add_parser("import-secrets-stdin", help="Import a JSON object from stdin without echoing secrets")
     checks = sub.add_parser("check-upstreams")
@@ -171,6 +297,8 @@ def main():
             initialize()
         elif args.command == "check-running":
             return 0 if proxy_running() else 1
+        elif args.command == "stop":
+            print(stop_application(proxy_port=args.proxy_port, panel_port=args.panel_port))
         elif args.command == "set-key":
             for name in ([args.provider] if args.provider else ["provider1", "provider2", "provider3"]):
                 value = getpass.getpass(f"API key for {name} (hidden; Enter keeps current): ").strip()
@@ -210,9 +338,9 @@ def main():
                 print(json.dumps(response.json(), indent=2))
                 response.raise_for_status()
         return 0
-    except (ConfigurationError, CredentialError, OSError, ValueError, httpx.HTTPError, RuntimeError) as exc:
+    except (ConfigurationError, CredentialError, OSError, ValueError, httpx.HTTPError, RuntimeError, psutil.Error) as exc:
         # Exception text from network clients and vaults may contain sensitive details.
-        if isinstance(exc, (ConfigurationError, CredentialError)):
+        if isinstance(exc, (ConfigurationError, CredentialError, LifecycleError)):
             print(str(exc), file=sys.stderr)
         else:
             print("Operation failed: " + type(exc).__name__, file=sys.stderr)

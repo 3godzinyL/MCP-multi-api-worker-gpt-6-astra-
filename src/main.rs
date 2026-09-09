@@ -265,6 +265,20 @@ async fn serve(
         proxy::router(config.clone(), data_dir.clone()).await?,
         proxy_port,
     );
+    // Worker startup releases routes from saved runs through the API. Serve
+    // those authenticated requests before waiting for worker health, otherwise
+    // each side waits for the other. JoinSet also aborts the API on any startup
+    // error so its listener never outlives this supervisor's serve attempt.
+    let (shutdown, _) = tokio::sync::watch::channel(false);
+    let mut servers = tokio::task::JoinSet::new();
+    let mut api_stop = shutdown.subscribe();
+    servers.spawn(async move {
+        axum::serve(api_listener, api)
+            .with_graceful_shutdown(async move {
+                let _ = api_stop.changed().await;
+            })
+            .await
+    });
     let sidecar_token =
         uuid::Uuid::new_v4().simple().to_string() + &uuid::Uuid::new_v4().simple().to_string();
     let executable = python
@@ -367,17 +381,8 @@ async fn serve(
         gateway::router(worker_port, sidecar_token.clone(), proxy_token)?,
         panel_port,
     );
-    let (shutdown, _) = tokio::sync::watch::channel(false);
-    let mut api_stop = shutdown.subscribe();
     let mut panel_stop = shutdown.subscribe();
-    let api_job = tokio::spawn(async move {
-        axum::serve(api_listener, api)
-            .with_graceful_shutdown(async move {
-                let _ = api_stop.changed().await;
-            })
-            .await
-    });
-    let panel_job = tokio::spawn(async move {
+    servers.spawn(async move {
         axum::serve(panel_listener, panel)
             .with_graceful_shutdown(async move {
                 let _ = panel_stop.changed().await;
@@ -408,13 +413,13 @@ async fn serve(
         }
     }
     drain.abort();
-    for job in [api_job, panel_job] {
-        let handle = job.abort_handle();
-        if tokio::time::timeout(Duration::from_secs(5), job)
+    while !servers.is_empty() {
+        if tokio::time::timeout(Duration::from_secs(5), servers.join_next())
             .await
             .is_err()
         {
-            handle.abort();
+            servers.abort_all();
+            break;
         }
     }
     result

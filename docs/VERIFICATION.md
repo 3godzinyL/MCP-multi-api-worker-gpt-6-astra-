@@ -1,4 +1,43 @@
-# Weryfikacja — 8 września 2026
+# Weryfikacja — 9 września 2026
+
+## Obsługa START i STOP — 9 września
+
+Poprzedni `stop.bat` tylko wyświetlał instrukcję Ctrl+C, a ponowny START kończył się bez otwarcia panelu. START otwiera teraz przeglądarkę także dla działającej instancji; przy nowym starcie osobny, kontrolowany helper czeka na gotowość panelu. Opcja `-NoBrowser` pozwala uruchamiać testy bez okien przeglądarki.
+
+STOP sprawdza właściciela obu portów, ścieżkę binarki, katalog workera, konfigurację i dane tej instalacji. Ustanawia zwykłą sesję panelu z CSRF, zatrzymuje aktywne zadania przez publiczne API i czeka na zamknięcie procesu. Odrzucone żądanie lub timeout zwraca błąd zamiast pozornego sukcesu. Nie wymusza zabijania procesów.
+
+- `python -m pytest -q tests/test_manage.py tests/test_startup.py`: **53 passed**, 27,32 s. Obejmuje otwieranie gotowego i już działającego panelu, timeout, brak dodatkowego serwera, argumenty BAT i kody błędów, odmowę zatrzymania obcej instalacji, zatrzymanie aktywnych zadań oraz ponowny STOP.
+- `python -m pytest -q tests/test_security_hardening.py tests/test_rust_workspace.py`: **63 passed**, 20,36 s; dwa wcześniejsze ostrzeżenia Starlette/httpx. W tym rzeczywiste zamknięcie pakowanej binarki Rust przez nową funkcję STOP oraz kontrola zwolnienia publicznych i prywatnego portu.
+- Cykl na lokalnej instalacji: `stop.bat` zakończył serwer; drugi STOP potwierdził wyłączenie; `start.bat -NoBrowser` przywrócił gotowy panel; ponowny `start.bat` wywołał otwarcie przeglądarki i zachował ten sam PID serwera. Testy nie zmieniały globalnej konfiguracji Codexa ani kluczy API.
+
+**English:** START now opens an existing dashboard or waits for a new one to become healthy before opening the browser. STOP verifies the installation and uses its authenticated dashboard session to stop active tasks and shut down cleanly. The launcher/management suite passed **53 tests** and the security/workspace suite passed **63**, including real Rust process and port cleanup. A local STOP → repeated STOP → START → repeated START cycle succeeded without creating a second server. Global Codex settings and API credentials were unchanged.
+
+## Naprawa uruchamiania po zapisaniu historii — 9 września
+
+Odtworzono błąd `Private worker health check failed`: worker podczas startu zwalniał trasy zapisanych uruchomień, ale Rust zaczynał obsługiwać API dopiero po uzyskaniu gotowości workera. Żądania odzyskiwania czekały na serwer, a serwer na zakończenie odzyskiwania.
+
+Rust uruchamia teraz chronione API przed sprawdzaniem gotowości workera. Publiczny panel nadal czeka na jego gotowość. Zadania serwera należą do `JoinSet`, więc błąd startu przerywa także obsługę API i zwalnia port. Protokół workera i scalanie plików pozostają zachowane.
+
+| Kontrola | Wynik |
+| --- | --- |
+| Nowa regresja z czterema zapisanymi rozmowami i limitem startu workera 5 s | Przed poprawką FAIL; po poprawce PASS. Sprawdza również zachowanie zapisanych wiadomości i pliku użytkownika. |
+| `python -m pytest -q` przed zmianą kolejności startu | **440 passed, 1 skipped**, 318,25 s; dwa ostrzeżenia Starlette/httpx. Obejmuje rzeczywisty Codex na lokalnych mockach. |
+| Po poprawce: `python -m pytest -q tests/test_rust_workspace.py tests/test_startup.py` | **21 passed**, 18,16 s; rzeczywisty Rust/Python, restart z historią i sprzątanie procesów po błędach startu. |
+| `cargo fmt --all --check`, `cargo clippy --locked --all-targets -- -D warnings`, `cargo test --locked` | PASS; **60 testów Rust**. |
+| `cargo build --locked`, `cargo build --locked --release` | PASS. |
+| `python scripts/test_rust_proxy.py` | **41 passed**, 48,13 s. |
+| `python scripts/test_mcp.py` | PASS; protokół, odczyt metadanych, ograniczenia i redakcja. |
+| `npm run test:ui` | **16 passed**, 30,5 s. |
+| Osobna, jawnie autoryzowana próba rzeczywistych API: `scripts/check_live.py --generate` | Każde z trzech API: **HTTP 200, completed**, po 15 raportowanych tokenów. |
+| Rzeczywisty Codex CLI przez przygotowaną konfigurację proxy, z osobnym `CODEX_HOME` | Kod wyjścia **0**, sprawdzona dokładna odpowiedź. |
+| Trzy rzeczywiste zadania panelu w osobnym katalogu danych i osobnym `CODEX_HOME` | **3 completed**, po jednym rzeczywistym agencie i jednym wywołaniu właściwego API; sprawdzona odpowiedź i provider w telemetrii. |
+| Działająca instalacja z dotychczasowymi danymi | Health/UI/state **200**, trzy API gotowe; Chromium: **0 błędów JavaScript i odpowiedzi API z błędem**. |
+
+Testy regresji używają lokalnych mocków i nie zmieniają globalnej konfiguracji Codexa. Osobne próby rzeczywistych API oraz aktywacja konfiguracji zostały zlecone przez użytkownika. Klucze pozostają w Menedżerze poświadczeń Windows; prywatne konfiguracje, kopie danych i raporty prób są poza Git. Naprawiono także nieaktualny port i ścieżkę helpera w prywatnej konfiguracji Codexa. Poprzednią konfigurację zachowano bajt w bajt. Porównanie historii z kopią potwierdziło zachowanie wszystkich 652 wiadomości, czatów i uruchomień.
+
+**English:** Fixed a startup dependency cycle: the private worker released saved run routes before becoming healthy, while Rust waited for worker health before serving the API. Rust now serves the authenticated API first and owns both server tasks in a `JoinSet` for cleanup on startup failure. The new four-chat regression failed before the fix and passed afterwards; all 21 startup/workspace checks passed. The preceding full Python suite passed 440 tests with one skip. Rust checks (60 tests), 41 proxy scenarios, MCP and 16 browser tests passed. Separately authorized live checks verified all three providers, the Codex CLI configuration and three actual panel tasks with provider-specific telemetry in isolated test data. The running installation preserved all 652 existing messages and loaded in Chromium without JavaScript or API errors. Global configuration activation was a separate requested setup action, with an exact backup; regression tests did not change it.
+
+## Wcześniejszy raport — 8 września 2026
 
 Raport dotyczy bieżącego checkoutu `nowe`. Zastępuje wcześniejsze wyniki z innej kopii projektu. Testy korzystają z lokalnych providerów i odrębnych danych; globalna konfiguracja Codexa oraz prywatna historia użytkownika pozostają bez zmian. Poniższe zestawy częściowo się pokrywają — ich liczby nie są sumą różnych testów.
 

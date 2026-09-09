@@ -1,4 +1,5 @@
-
+> 📷 **Twoje zdjęcia z Discorda:** `DISCORD_IMAGE_1_URL` · `DISCORD_IMAGE_2_URL`<br>
+> Tu wklej dwa bezpośrednie linki do swoich zdjęć. Poniżej są zrzuty lokalnego demo aplikacji.
 
 <p align="center"><img src="docs/images/cover.svg" alt="3api — lokalne centrum pracy z AI" width="100%"></p>
 
@@ -36,7 +37,7 @@ Otwórz katalog projektu lub rozpakuj `GitHub/3api-source.zip`. Potrzebujesz **P
 .\start.bat
 ```
 
-1. Otwórz **http://127.0.0.1:4101/ui/**. Sesja powstaje automatycznie.
+1. Panel otworzy się automatycznie pod **http://127.0.0.1:4101/ui/**. Sesja powstaje automatycznie.
 2. Dodaj swoje API: endpoint, dokładny model lub deployment oraz klucz.
 3. Dodaj projekt z katalogiem albo czat, następnie zaznacz zgodne API.
 4. Napisz polecenie. Kolejna wiadomość kontynuuje rozmowę i tworzy nowy wpis historii.
@@ -45,7 +46,7 @@ Pierwszy start tworzy `.venv`, instaluje zależności Pythona i buduje program R
 
 Folder **GitHub** jest przygotowanym eksportem źródeł: zawiera kod, dokumentację, zrzuty ekranu i sumy kontrolne. Nie wymaga gotowego EXE. Opcjonalny proces tworzenia wydania Windows z workerem i bootstrapem opisuje [docs/RELEASE.md](docs/RELEASE.md).
 
-Pozostaw terminal serwera otwarty. **Ctrl+C** zatrzymuje tę instancję. [Pełna instrukcja i rozwiązywanie problemów](docs/STARTUP.md).
+Pozostaw terminal serwera otwarty. Ponowne **`start.bat`** otwiera działający panel. **`stop.bat`** zatrzymuje tę instalację także wtedy, gdy jej okno jest ukryte; najpierw kończy aktywne zadania i zapisuje wyniki. Możesz też użyć **Ctrl+C** w terminalu serwera. [Pełna instrukcja i rozwiązywanie problemów](docs/STARTUP.md).
 
 ## Czat zostaje. Uruchomienia mają własną historię.
 
