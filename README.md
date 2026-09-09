@@ -1,5 +1,4 @@
-> 📷 **Twoje zdjęcia z Discorda:** `DISCORD_IMAGE_1_URL` · `DISCORD_IMAGE_2_URL`<br>
-> Tu wklej dwa bezpośrednie linki do swoich zdjęć. Poniżej są zrzuty lokalnego demo aplikacji.
+
 
 <p align="center"><img src="docs/images/cover.svg" alt="3api — lokalne centrum pracy z AI" width="100%"></p>
 
