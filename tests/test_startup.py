@@ -3,7 +3,9 @@ import os
 import shutil
 import socket
 import subprocess
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,6 +17,75 @@ from stop_proxy import stop_proxy
 
 ROOT = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows startup scripts")
+
+
+@pytest.mark.parametrize("launcher,mode,browser", [
+    ("start.bat", "Start", True), ("stop.bat", "Stop", False), ("stop_gui.bat", "Stop", False),
+])
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_launchers_forward_ports_and_preserve_failure_status(tmp_path, launcher, mode, browser, exit_code):
+    fixture = tmp_path / "launcher with spaces"
+    (fixture / "scripts").mkdir(parents=True)
+    for name in ("start.bat", "stop.bat", "stop_gui.bat"):
+        shutil.copy2(ROOT / name, fixture / name)
+    (fixture / "scripts" / "start.ps1").write_text(
+        "param([string]$Mode='Start',[switch]$OpenBrowser,[int]$ProxyPort,[int]$PanelPort)\n"
+        "@{mode=$Mode;browser=[bool]$OpenBrowser;proxy=$ProxyPort;panel=$PanelPort} | ConvertTo-Json | "
+        "Set-Content -LiteralPath (Join-Path $PSScriptRoot '../called.json')\n"
+        f"exit {exit_code}\n", encoding="utf-8")
+    result = subprocess.run(["cmd.exe", "/d", "/c", launcher, "-ProxyPort", "24100", "-PanelPort", "24101"],
+                            cwd=fixture, input="\n", capture_output=True, text=True, timeout=10)
+    assert result.returncode == exit_code
+    assert json.loads((fixture / "called.json").read_text(encoding="utf-8-sig")) == {
+        "mode": mode, "browser": browser, "proxy": 24100, "panel": 24101}
+
+
+@pytest.mark.parametrize("mode,ready_after,no_browser,opens", [
+    ("Start", 0, False, True), ("Start", 0, True, False),
+    ("OpenPanel", .6, False, True), ("OpenPanel", None, False, False),
+])
+def test_powershell_opens_existing_or_ready_panel_without_starting_another_server(tmp_path, mode, ready_after, no_browser, opens):
+    started = time.monotonic()
+    calls = []
+    class Health(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+        def do_GET(self):
+            calls.append(self.path)
+            ready = ready_after is not None and time.monotonic() - started >= ready_after
+            body = json.dumps({"status": "ok" if ready else "starting", "application": "3api-rust-panel"}).encode()
+            self.send_response(200 if ready else 503)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Health)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        proxy_port = probe.getsockname()[1]
+    fixture = tmp_path / "no server binary or Python"
+    (fixture / "scripts").mkdir(parents=True)
+    shutil.copy2(ROOT / "scripts" / "start.ps1", fixture / "scripts" / "start.ps1")
+    opened = tmp_path / "opened.txt"
+    harness = tmp_path / "record-browser.ps1"
+    harness.write_text(
+        "function Start-Process { param([string]$FilePath)\n"
+        f"[System.IO.File]::AppendAllText('{str(opened).replace(chr(39), chr(39)*2)}', $FilePath + [Environment]::NewLine)\n}}\n"
+        f"& '{str(fixture / 'scripts' / 'start.ps1').replace(chr(39), chr(39)*2)}' -Mode {mode} -OpenBrowser "
+        f"-ProxyPort {proxy_port} -PanelPort {server.server_port} -OpenTimeoutSeconds 2 "
+        + ("-NoBrowser" if no_browser else "") + "\nexit $LASTEXITCODE\n", encoding="utf-8")
+    try:
+        result = subprocess.run(["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                                 "-File", str(harness)], capture_output=True, text=True, timeout=12)
+        assert result.returncode == (0 if ready_after is not None else 1), result.stdout + result.stderr
+        assert opened.exists() == opens
+        if opens:
+            assert opened.read_text(encoding="utf-8-sig").splitlines() == [f"http://127.0.0.1:{server.server_port}/ui/"]
+        assert calls and set(calls) == {"/health"}
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 @pytest.mark.parametrize("choice,stop_exit,expected,exit_code", [

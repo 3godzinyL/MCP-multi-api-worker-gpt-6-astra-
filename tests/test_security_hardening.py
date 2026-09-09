@@ -15,6 +15,7 @@ import pytest
 import psutil
 from starlette.testclient import TestClient
 
+import manage
 from dashboard.runner import CodexRunner, WORKER_ENV_ALLOWLIST, codex_command
 from dashboard.server import SidecarSecurityMiddleware, create_app
 from dashboard.sidecar import main as sidecar_main
@@ -384,8 +385,11 @@ async def test_real_sidecar_binds_random_port_and_authenticates_health(tmp_path)
         assert PROVIDER_KEY.encode() not in stdout + stderr
 
 
-@pytest.mark.parametrize("worker_crash", [False, True])
-async def test_packaged_gateway_without_token_form_and_private_worker_shutdown(tmp_path, worker_crash):
+@pytest.mark.parametrize("worker_crash,launcher_stop", [
+    (False, False), (True, False),
+    pytest.param(False, True, marks=pytest.mark.skipif(os.name != "nt", reason="Windows STOP launcher")),
+])
+async def test_packaged_gateway_without_token_form_and_private_worker_shutdown(tmp_path, worker_crash, launcher_stop):
     source = Path(__file__).resolve().parents[1]
     binary = source / "target" / "debug" / ("3api.exe" if os.name == "nt" else "3api")
     if not binary.is_file():
@@ -459,8 +463,12 @@ async def test_packaged_gateway_without_token_form_and_private_worker_shutdown(t
                 assert page.status_code == 200
                 csrf = re.search(r'name="csrf-token" content="([^"]+)"', page.text)[1]
                 assert (await client.get("/ui/api/state")).status_code == 200
-                result = await client.post("/ui/api/shutdown", json={}, headers={"origin": base_url, "x-panel-csrf": csrf})
-                assert result.status_code == 200
+                if launcher_stop:
+                    result = await asyncio.to_thread(manage.stop_application, release, proxy_port, panel_port)
+                    assert "3api zatrzymane" in result
+                else:
+                    result = await client.post("/ui/api/shutdown", json={}, headers={"origin": base_url, "x-panel-csrf": csrf})
+                    assert result.status_code == 200
                 await asyncio.wait_for(process.wait(), 15)
                 assert process.returncode == 0
             for port in (proxy_port, panel_port, worker_port):

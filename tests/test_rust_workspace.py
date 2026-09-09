@@ -9,6 +9,7 @@ from urllib.error import URLError
 
 import pytest
 
+from dashboard.store import DashboardStore
 from tests.browser import release_smoke as smoke
 
 
@@ -119,3 +120,68 @@ def test_public_workspace_preserves_chats_runs_and_archives_across_restart(tmp_p
             smoke.stop_application(process, panel, normal=False)
         upstream.shutdown()
         upstream.server_close()
+
+
+def test_startup_releases_saved_run_routes_before_worker_health_deadline(tmp_path):
+    """Recovery needs the Rust API while the private worker is still starting."""
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "user-notes.txt").write_text("Keep my work\n", encoding="utf-8")
+    private_values = [secrets.token_urlsafe(40), secrets.token_urlsafe(40)]
+    env = smoke.environment(tmp_path, *private_values)
+    report = smoke.Report(tmp_path, private_values)
+    upstream = smoke.mock_provider(private_values[1])
+    config = smoke.write_config(tmp_path, upstream.server_port)
+    data_dir = tmp_path / "data"
+    store = DashboardStore(data_dir / "dashboard.sqlite3")
+    saved = {}
+    try:
+        project_id = store.add_project(str(project))["id"]
+        for index in range(4):
+            task_id, run_id = f"saved-chat-{index}", f"saved-run-{index}"
+            store.save_task({
+                "id": task_id, "project_id": project_id, "run_id": run_id,
+                "title": "Saved conversation", "state": "completed", "updated": index + 1,
+                "started_at": 1, "finished_at": 2, "elapsed_seconds": 1,
+                "agents": [], "api_ids": [smoke.PROVIDER], "changes": [],
+                "messages": [{"id": "saved-message", "run_id": run_id,
+                              "role": "assistant", "text": f"Saved answer {index}"}],
+            })
+            saved[task_id] = store.load_task(task_id)
+    finally:
+        store.close()
+
+    proxy_port, panel_port = smoke.ports()
+    process = smoke.LoggedProcess([
+        str(BINARY), "serve", "--config", str(config), "--data-dir", str(data_dir),
+        "--project-dir", str(ROOT), "--python", sys.executable,
+        "--proxy-port", str(proxy_port), "--panel-port", str(panel_port),
+        "--worker-startup-timeout-seconds", "5",
+    ], ROOT, env, tmp_path / "saved-history-startup.log", report)
+    panel = smoke.Panel(panel_port)
+
+    def ready():
+        assert process.process.poll() is None, "Saved history prevented the Rust panel from starting"
+        try:
+            return panel.json("/health").get("application") == "3api-rust-panel"
+        except (URLError, ConnectionError, TimeoutError):
+            return False
+
+    try:
+        smoke.wait_until(ready, timeout=15, description="startup with saved run routes")
+        panel.open()
+        state = panel.json("/ui/api/state")
+        assert {task["id"] for task in state["tasks"]} == set(saved)
+        assert state["proxy"] is not None
+        smoke.stop_application(process, panel, normal=True)
+    finally:
+        process.force_stop()
+        upstream.shutdown()
+        upstream.server_close()
+
+    store = DashboardStore(data_dir / "dashboard.sqlite3")
+    try:
+        assert {task_id: store.load_task(task_id) for task_id in saved} == saved
+    finally:
+        store.close()
+    assert (project / "user-notes.txt").read_text(encoding="utf-8") == "Keep my work\n"
